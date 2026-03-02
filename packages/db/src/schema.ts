@@ -18,6 +18,7 @@ export const users = pgTable("users", {
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   email: varchar("email", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 100 }),
   passwordHash: text("password_hash").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -127,13 +128,13 @@ export const SEED_LANGUAGES = [
   { code: "ko", name: "Korean",     nativeName: "한국어"     },
   { code: "zh", name: "Chinese (Simplified)", nativeName: "中文"  },
   { code: "ar", name: "Arabic",     nativeName: "العربية"   },
+  { code: "hi", name: "Hindi",      nativeName: "हिन्दी"   },
   { code: "tr", name: "Turkish",    nativeName: "Türkçe"     },
   { code: "sv", name: "Swedish",    nativeName: "Svenska"    },
   { code: "da", name: "Danish",     nativeName: "Dansk"      },
+  { code: "no", name: "Norwegian",  nativeName: "Norsk"      },
   { code: "fi", name: "Finnish",    nativeName: "Suomi"      },
-  { code: "nb", name: "Norwegian",  nativeName: "Norsk"      },
   { code: "cs", name: "Czech",      nativeName: "Čeština"    },
-  { code: "hu", name: "Hungarian",  nativeName: "Magyar"     },
 ] as const;
 
 // ──────────────────────────────────────────────
@@ -152,6 +153,7 @@ export const webhooks = pgTable("webhooks", {
   url: text("url").notNull(),
   secret: text("secret").notNull()
     .$defaultFn(() => crypto.randomBytes(32).toString("hex")),
+  provider: varchar("provider", { length: 10 }).notNull().default("github"), // github | gitlab
   events: jsonb("events").notNull().default(["push"]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -167,10 +169,14 @@ export const subscriptions = pgTable("subscriptions", {
     .notNull()
     .references(() => workspaces.id, { onDelete: "cascade" }),
   stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   stripePriceId: text("stripe_price_id"),
   tier: varchar("tier", { length: 20 }).notNull().default("free"), // free | starter | pro
   status: varchar("status", { length: 20 }).notNull().default("active"),
   currentPeriodEnd: timestamp("current_period_end"),
+  digestOptOut: boolean("digest_opt_out").notNull().default(false),
+  unsubscribeToken: text("unsubscribe_token")
+    .$defaultFn(() => crypto.randomBytes(24).toString("hex")),
 });
 
 // ──────────────────────────────────────────────
