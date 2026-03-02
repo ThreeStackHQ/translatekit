@@ -3,7 +3,10 @@ import { db, workspaces, users, projects, translationKeys, translationValues, su
 import { eq, gte, count, sql } from "drizzle-orm";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-initialized to avoid build-time failures when RESEND_API_KEY is not set
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY ?? "re_placeholder");
+}
 
 function buildDigestEmail(params: {
   workspaceName: string;
@@ -209,7 +212,7 @@ export async function GET(req: NextRequest) {
           unsubscribeUrl,
         });
 
-        await resend.emails.send({
+        await getResend().emails.send({
           from: "digest@translatekit.threestack.io",
           to: workspace.userEmail,
           subject: `📊 Your Weekly Translation Report — ${workspace.workspaceName}`,

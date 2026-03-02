@@ -2,9 +2,12 @@ import OpenAI from "openai";
 import { db, translationKeys, translationValues } from "@translatekit/db";
 import { eq, and, inArray } from "drizzle-orm";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy-initialize to avoid build-time failures when OPENAI_API_KEY is not set
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY ?? "sk-placeholder",
+  });
+}
 
 const BATCH_SIZE = 20;
 
@@ -22,7 +25,7 @@ async function translateBatch(
 ): Promise<Record<string, string>> {
   const prompt = SYSTEM_PROMPT.replace("{locale}", targetLocale);
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       { role: "system", content: prompt },
