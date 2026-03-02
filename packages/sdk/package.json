@@ -1,0 +1,21 @@
+{
+  "name": "@translatekit/sdk",
+  "version": "0.1.0",
+  "description": "Vanilla JS CDN client for TranslateKit — fetch translations, cache in localStorage",
+  "main": "./dist/translatekit.js",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "require": "./dist/translatekit.js"
+    }
+  },
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node --watch build.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}
