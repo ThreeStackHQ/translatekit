@@ -81,8 +81,15 @@ async function fetchTranslations(
   locale: string,
   apiKey: string
 ): Promise<Record<string, string>> {
-  const url = `${cdnBase}/api/cdn/${projectId}/${locale}.json?key=${apiKey}`;
-  const res = await fetch(url);
+  // SEC-001 FIX: Use Authorization header instead of URL query param.
+  // Passing secrets in URLs leaks them into server logs, CDN cache keys,
+  // browser history, and Referer headers.
+  const url = `${cdnBase}/api/cdn/${projectId}/${locale}.json`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
   if (!res.ok) {
     throw new Error(
       `TranslateKit: failed to fetch translations (${res.status})`
