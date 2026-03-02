@@ -19,6 +19,14 @@ export const users = pgTable("users", {
     .$defaultFn(() => crypto.randomUUID()),
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  // BUG-004 FIX: Added unsubscribeToken for weekly digest unsubscribe flow.
+  // Must be unique per user. Generated on first digest send, or at signup.
+  // Validated server-side to remove user from digest list.
+  // token = crypto.randomBytes(32).toString("hex") → 64 hex chars, 256-bit entropy
+  unsubscribeToken: text("unsubscribe_token")
+    .unique()
+    .$defaultFn(() => crypto.randomBytes(32).toString("hex")),
+  digestOptOut: boolean("digest_opt_out").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

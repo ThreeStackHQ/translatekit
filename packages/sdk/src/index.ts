@@ -79,17 +79,19 @@ async function fetchTranslations(
   cdnBase: string,
   projectId: string,
   locale: string,
-  apiKey: string
+  // apiKey kept in signature for potential future authenticated CDN tiers
+  // but NOT sent to the public CDN endpoint (BUG-002 FIX)
+  _apiKey: string
 ): Promise<Record<string, string>> {
-  // SEC-001 FIX: Use Authorization header instead of URL query param.
-  // Passing secrets in URLs leaks them into server logs, CDN cache keys,
-  // browser history, and Referer headers.
-  const url = `${cdnBase}/api/cdn/${projectId}/${locale}.json`;
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  });
+  // BUG-002 FIX: CDN is a public endpoint — no Authorization header required.
+  //   The API key is used for authenticated project management APIs, not CDN serving.
+  //   Sending it to CDN exposes it unnecessarily in request headers.
+  //
+  // BUG-003 FIX: Removed spurious `.json` suffix from URL.
+  //   Next.js route is at /api/cdn/[projectId]/[locale] (no extension).
+  //   Adding .json caused 404s because no catch-all matches the extension.
+  const url = `${cdnBase}/api/cdn/${projectId}/${locale}`;
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(
       `TranslateKit: failed to fetch translations (${res.status})`

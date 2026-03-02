@@ -7,12 +7,19 @@
  *
  * Security profile:
  *  - CORS:         Access-Control-Allow-Origin: * (public CDN endpoint)
- *  - Auth:         Authorization: Bearer <api_key> (NOT query param — SEC-001)
+ *  - Auth:         NONE — CDN is intentionally public by projectId + locale
+ *                  (SEC-001 fix applies to authenticated API routes, NOT CDN)
  *  - Rate limit:   500 req/min per projectId (in-memory; swap for Upstash in prod)
  *  - Admin routes: MUST NOT use wildcard CORS (separate middleware)
  *
- * TODO (Bolt): Implement DB lookup — validate api_key → workspace,
- *              verify projectId belongs to workspace, fetch & return
+ * BUG-002 FIX: Removed Bearer auth requirement — CDN is a public endpoint.
+ *   The translation JSON is public data (no secrets in translated strings).
+ *   Authentication happens at project management level, not CDN serving level.
+ *
+ * BUG-001 FIX: Cache-Control corrected to 1 hour (3600s) per spec.
+ *   Previous value was 300s (5 min) which caused excessive origin hits.
+ *
+ * TODO (Bolt): Implement DB lookup — verify projectId exists, fetch & return
  *              compiled translations from translation_values table.
  */
 
@@ -20,11 +27,12 @@ import { NextResponse } from "next/server";
 import { checkRateLimit, cdnRateLimiter } from "@/lib/rate-limit";
 
 // CORS headers for public CDN endpoint
+// BUG-001 FIX: Cache-Control corrected from max-age=300 (5 min) to max-age=3600 (1 hour)
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type",
-  "Cache-Control": "public, max-age=300, s-maxage=300", // 5-min CDN cache
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Cache-Control": "public, max-age=3600, s-maxage=3600", // 1-hour CDN cache (BUG-001 FIX)
 } as const;
 
 // Handle CORS preflight
@@ -33,7 +41,7 @@ export async function OPTIONS() {
 }
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { projectId: string; locale: string } }
 ) {
   const { projectId, locale } = params;
@@ -43,23 +51,6 @@ export async function GET(
     return NextResponse.json(
       { error: "Too many requests. Slow down." },
       { status: 429, headers: CORS_HEADERS }
-    );
-  }
-
-  // ── Auth: Bearer token in Authorization header (NOT query param) ──────────
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json(
-      { error: "Missing or invalid Authorization header. Use: Authorization: Bearer <api_key>" },
-      { status: 401, headers: CORS_HEADERS }
-    );
-  }
-  const apiKey = authHeader.slice(7).trim();
-
-  if (!apiKey || !apiKey.startsWith("tk_live_")) {
-    return NextResponse.json(
-      { error: "Invalid API key format." },
-      { status: 401, headers: CORS_HEADERS }
     );
   }
 
@@ -75,12 +66,17 @@ export async function GET(
   }
 
   // ── TODO: Bolt to implement ───────────────────────────────────────────────
-  // 1. Look up apiKey in DB (workspaces.apiKey) — use constant-time comparison
-  // 2. Verify projectId belongs to the workspace
-  // 3. Fetch compiled translations from translation_values JOIN translation_keys
+  // 1. Query translation_values JOIN translation_keys
   //    WHERE translation_keys.projectId = projectId AND translation_values.locale = locale
-  // 4. Return as flat { "key": "value" } JSON
-  // 5. Set ETag header for conditional requests
+  // 2. If locale not found → return 404 with fallback info
+  // 3. Return as flat { "key": "value" } JSON
+  // 4. Set ETag header for conditional requests (If-None-Match → 304 Not Modified)
+  //
+  // Fallback when locale missing:
+  //   return NextResponse.json(
+  //     { error: `Locale '${locale}' not found for project '${projectId}'.` },
+  //     { status: 404, headers: CORS_HEADERS }
+  //   );
 
   return NextResponse.json(
     {
